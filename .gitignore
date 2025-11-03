@@ -1,0 +1,58 @@
+# === Environment & Dependencies ===
+.env
+*.env
+venv/
+.venv/
+env/
+ENV/
+
+# === Python cache / compiled ===
+__pycache__/
+*.py[cod]
+*$py.class
+
+# === Build & Packaging ===
+build/
+dist/
+*.egg-info/
+*.egg
+.eggs/
+MANIFEST
+
+# === Logs & Temp Data ===
+*.log
+logs/
+tmp/
+*.pid
+*.bak
+*.tmp
+
+# === IDE / OS Files ===
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# === Runtime / Simulation Files ===
+virtual_balance.json
+wallet_state.json
+*.db
+*.sqlite3
+
+# === Testing & Coverage ===
+.tox/
+.pytest_cache/
+.coverage
+nosetests.xml
+coverage.xml
+htmlcov/
+
+# === Jupyter / Experiments ===
+.ipynb_checkpoints
+
+# === Secrets & Keys ===
+*.pem
+*.crt
+*.key
+keys/
+secrets/
