@@ -1,19 +1,23 @@
 from binance.client import Client
+from libs.supabase import supabase
 from libs.env import (
     BINANCE_API_KEY,
     BINANCE_API_SECRET,
     BINANCE_API_URL_TESTNET,
     BINANCE_API_URL,
 )
+
 from services.bot_action_service import BotActionService
+from dto.bot_dto import BotResponseDTO, BotCreateDTO, BotUpdateDTO
 
 import requests
 import time
 import asyncio
 
 
-class TradingService:
-    _trading_instance = None  # single bot
+class BotService:
+    _bot_instance = None  # single bot
+    _table = "bots"
 
     def __init__(self, symbol: str = "BTCUSDT", testnet: bool = True):
         self.symbol = symbol
@@ -178,3 +182,98 @@ class TradingService:
         except Exception as e:
             print("[ERROR] extract balance:", e)
             return {}
+
+    # CRUD
+    @staticmethod
+    def find_all() -> list[BotResponseDTO]:
+        try:
+            result = (
+                supabase.table(BotService._table)
+                .select("id, name, symbol, timeframe, config, created_at, updated_at")
+                .order("created_at", desc=True)
+                .execute()
+            )
+
+            return result.data
+
+        except Exception as e:
+            print("Error in retrieve data:", str(e))
+            raise e
+
+    @staticmethod
+    async def find_one(id: str):
+        try:
+            response = (
+                supabase.table(BotService._table)
+                .select("id, name, symbol, timeframe, config, created_at, updated_at")
+                .eq("id", id)
+                .execute()
+            )
+
+            return response.data
+
+        except Exception as e:
+            print("Error in retrieve data:", str(e))
+            raise e
+
+    @staticmethod
+    def create(payload: BotCreateDTO) -> list[BotResponseDTO]:
+        try:
+            result = supabase.table(BotService._table).insert(payload).execute()
+            return result.data
+
+        except Exception as e:
+            print("Error creating Bot:", e)
+            raise e
+
+    @staticmethod
+    def update(id: str, payload: BotUpdateDTO) -> list[BotResponseDTO]:
+        try:
+
+            # ✅ Pastikan bot dengan ID tersebut ada
+            existing = (
+                supabase.table(BotService._table)
+                .select("id")
+                .eq("id", id)
+                .limit(1)
+                .execute()
+            )
+
+            if not existing.data:
+                raise ValueError(f"Bot with id '{id}' not found")
+
+            result = (
+                supabase.table(BotService._table).update(payload).eq("id", id).execute()
+            )
+
+            return result.data
+
+        except Exception as e:
+            print("Error updating Bot:", e)
+            raise e
+
+    @staticmethod
+    def delete(id: str) -> list[BotResponseDTO]:
+        try:
+            # ✅ Pastikan ID dikirim
+            if not id:
+                raise ValueError("Bot ID is required for deletion")
+
+            # ✅ Cek apakah bot dengan ID tersebut ada
+            existing = (
+                supabase.table(BotService._table)
+                .select("id")
+                .eq("id", id)
+                .limit(1)
+                .execute()
+            )
+
+            if not existing.data:
+                raise ValueError(f"Bot with id '{id}' not found")
+
+            result = supabase.table(BotService._table).delete().eq("id", id).execute()
+            return result.data
+
+        except Exception as e:
+            print("Error deleting Bot:", e)
+            raise e

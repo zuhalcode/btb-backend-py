@@ -1,8 +1,16 @@
 from fastapi import APIRouter
-from controllers.trading_controller import TradingController
+from controllers.bot_controller import BotController
 
-router = APIRouter(prefix="/api/trading")
+router = APIRouter(prefix="/api/bots")
 
-router.get("/check-connection")(TradingController.check_connection)
-router.post("/start")(TradingController.start_grid_trading)
-router.post("/stop")(TradingController.stop_grid_trading)
+# Bot Control
+router.get("/check-connection")(BotController.check_connection)
+router.post("/{id}/start")(BotController.start)
+router.post("/{id}/stop")(BotController.stop)
+
+# CRUD
+router.get("")(BotController.find_all)
+router.get("/{id}")(BotController.find_one)
+router.post("")(BotController.create)
+router.put("/{id}")(BotController.update)
+router.delete("/{id}")(BotController.delete)

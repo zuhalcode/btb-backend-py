@@ -8,22 +8,86 @@ from fastapi import (
     Request,
 )
 
+from fastapi.responses import JSONResponse
 from services.trading_service import TradingService
-
 from utils.response import ResponseHandler
+from services.bot_service import BotService
+from dtos.bot_dto import BotCreateDTO, BotUpdateDTO
 
 import asyncio
 
 
-class TradingController:
-    async def check_connection(req: Request):
+class BotController:
+
+    # CRUD
+    def find_all() -> JSONResponse:
         try:
-            temp_bot = TradingService()
-            result = await temp_bot.check_connection()
+            result = BotService.find_all()
+            return ResponseHandler.success(result, "Bot Retrieved Successfully")
+        except Exception as e:
+            return ResponseHandler.error(e, "Retrieve Bot data failed")
+
+    async def find_one(id: str) -> JSONResponse:
+        try:
+            result = await BotService.find_one(id)
+            return ResponseHandler.success(result, "Bot Retrieved Successfully")
+        except Exception as e:
+            return ResponseHandler.error(e, "Retrieve Bot data failed")
+
+    async def create(req: Request) -> JSONResponse:
+        try:
+            body = await req.json()
+            payload = BotCreateDTO(**body).model_dump()
+            result = BotService.create(payload)
+            return ResponseHandler.success(result, "New Bot created successfully")
+
+        except Exception as e:
+            return ResponseHandler.error(e, "Create new Bot Failed")
+
+    async def update(id: str, req: Request) -> JSONResponse:
+        try:
+            body = await req.json()
+            payload = BotUpdateDTO(**body).model_dump(exclude_unset=True)
+            result = BotService.update(id, payload)
+            return ResponseHandler.success(result, "Updated Bot Successfullt")
+
+        except Exception as e:
+            return ResponseHandler.error(e, "Update Bot data failed")
+
+    async def delete(id: str) -> JSONResponse:
+        try:
+            result = BotService.delete(id)
+            return ResponseHandler.success(result, "Bot Deleted Successfully")
+        except Exception as e:
+            return ResponseHandler.error(e, "Delete Bot Failed")
+
+    # Bot Control
+    def check_connection():
+        try:
+            bot = BotService()
+            result = bot.check_connection()
             return ResponseHandler.success(result, "Binance connection OK")
 
         except Exception as e:
             return ResponseHandler.error(e, "Failed to connect to Binance")
+
+    def start(id: str) -> JSONResponse:
+        try:
+            bot_data = BotService.start(id)
+            if not bot_data:
+                return ResponseHandler.error(None, f"Bot with id {id} not found")
+            return ResponseHandler.success(bot_data, "Bot Started Successfully")
+        except Exception as e:
+            return ResponseHandler.error(e, "Bot Starting failed")
+
+    def stop(id: str) -> JSONResponse:
+        try:
+            bot_data = BotService.stop(id)
+            if not bot_data:
+                return ResponseHandler.error(None, f"Bot with id {id} not found")
+            return ResponseHandler.success(bot_data, "Bot Stopped Successfully")
+        except Exception as e:
+            return ResponseHandler.error(e, "Bot Stopping failed")
 
     async def start_grid_trading(req: Request):
         try:
