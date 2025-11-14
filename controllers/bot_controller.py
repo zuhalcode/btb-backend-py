@@ -1,4 +1,5 @@
-# controllers/trading_controller.py
+import asyncio
+
 from fastapi import (
     HTTPException,
     Request,
@@ -8,16 +9,17 @@ from fastapi import (
     Request,
 )
 
-from fastapi.responses import JSONResponse
 from services.trading_service import TradingService
-from utils.response import ResponseHandler
 from services.bot_service import BotService
-from dtos.bot_dto import BotCreateDTO, BotUpdateDTO, BotStatus
+from services.market_service import MarketService
 
-import asyncio
+from fastapi.responses import JSONResponse
+from utils.response import ResponseHandler
+from dtos.bot_dto import BotCreateDTO, BotUpdateDTO, BotStatus
 
 
 class BotController:
+    market_service_instance = MarketService()
 
     # CRUD
     def find_all() -> JSONResponse:

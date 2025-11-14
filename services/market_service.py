@@ -5,24 +5,24 @@ from libs.env import (
     BINANCE_API_SECRET,
     BINANCE_API_URL_TESTNET,
     BINANCE_API_URL,
+    TESTNET,
 )
 
 
 class MarketService:
 
-    def __init__(self, testnet: bool = True):
-        self.testnet = testnet
-        self.client = Client(BINANCE_API_KEY, BINANCE_API_SECRET, testnet=testnet)
+    def __init__(self):
+        self.testnet = TESTNET
+        self.client = Client(BINANCE_API_KEY, BINANCE_API_SECRET, testnet=TESTNET)
         self.client.REQUEST_RECVWINDOW = 5000
-        self.client.API_URL = BINANCE_API_URL_TESTNET if testnet else BINANCE_API_URL
+        self.client.API_URL = BINANCE_API_URL_TESTNET if TESTNET else BINANCE_API_URL
 
-    @staticmethod
-    def get_live_price(symbol: str) -> float:
-        """Ambil harga live dari Binance"""
+    def get_live_price(self, symbol: str) -> float:
         try:
-            res = requests.get(
-                f"{MarketService.BASE_URL}/api/v3/ticker/price?symbol={symbol.upper()}"
-            )
+            base_url = self.client.API_URL
+            api_endpoint = f"{base_url}/api/v3/ticker/price?symbol={symbol.upper()}"
+
+            res = requests.get(api_endpoint)
             res.raise_for_status()
             return float(res.json()["price"])
         except Exception as e:

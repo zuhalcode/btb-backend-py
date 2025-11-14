@@ -1,22 +1,25 @@
 from typing import Any, Optional
 from pydantic import BaseModel, Field
 from schemas.bot_enum import BotStatus
+from typing import Union
+
+from schemas.strategy import (
+    GridTradingConfig,
+    MeanReversalConfig,
+    BreakoutMomentumConfig,
+)
 
 
-class BotConfig(BaseModel):
-    symbol: str = Field(..., description="Pair like BTCUSDT")
-    initial_price: float = Field(..., gt=0)
-    grid_spacing_pct: float = Field(..., gt=0, description="Grid Spacing percentage")
-    fee_rate: float = Field(0.001, ge=0)
-    entry_alloc: float = Field(0.1, ge=0, le=1)
-    num_grids: int = Field(10, gt=0)
-    budget: float = Field(70, gt=0)
+StrategyConfig = Union[GridTradingConfig, MeanReversalConfig, BreakoutMomentumConfig]
 
 
 class BotDTO(BaseModel):
     name: str
-    status: BotStatus
-    config: Optional[Any] = {}
+    capital: float = Field(70.0, ge=0, description="Modal awal, default 70.")
+    status: BotStatus = Field(
+        BotStatus.INACTIVE, description="Status operasional bot, default INACTIVE."
+    )
+    config: StrategyConfig
 
 
 class BotCreateDTO(BotDTO):

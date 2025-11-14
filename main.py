@@ -1,7 +1,10 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from routes.api import router as trading_router
 from routes.ws import router as ws_router
 from fastapi.middleware.cors import CORSMiddleware
+from services.bot_service import BotService
+
 
 app = FastAPI(title="Testnet Grid Trading API")
 
@@ -12,6 +15,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 # Masukkan router
 app.include_router(trading_router)

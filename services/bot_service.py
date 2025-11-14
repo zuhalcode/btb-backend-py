@@ -1,3 +1,4 @@
+from typing import Optional
 from binance.client import Client
 from libs.supabase import supabase
 from libs.env import (
@@ -8,7 +9,10 @@ from libs.env import (
 )
 
 from datetime import datetime, timezone
+
 from services.bot_session_service import BotSessionService
+from services.market_service import MarketService
+
 from dtos.bot_dto import BotResponseDTO, BotCreateDTO, BotUpdateDTO, BotStatus
 from dtos.bot_session_dto import BotSessionStatus as SessionStatus
 
@@ -287,8 +291,8 @@ class BotService:
 
                     print(f"[{bot['name']}] is running... ")
 
-                    # jalankan logika utama (misal: ambil harga, evaluasi, entry/exit)
-                    # BotEventService.record_event(bot_id, "tick", "executed one cycle")
+                    # Jalankan get live price disini
+                    # live_price = market_service.get_live_price()
 
                     time.sleep(1)
 
@@ -330,5 +334,24 @@ class BotService:
         except Exception as e:
             print("Error Stopping Bot : ", e)
             raise e
+
+    @staticmethod
+    def force_stop_all_running_sessions():
+        """Menghentikan secara paksa semua sesi yang berstatus RUNNING saat shutdown."""
+        print(
+            "\n[SHUTDOWN HOOK] Initiating force stop and cleanup for all active bots..."
+        )
+
+        # 1. Hentikan flag in-memory untuk semua bot yang sedang berjalan
+        for bot_id in BotService._is_running:
+            BotService._is_running[bot_id] = False
+            print(f"[{bot_id}] Flag in-memory set to False.")
+
+        # 2. Update semua sesi RUNNING di DB menjadi ERROR/STOPPED (penting!)
+        try:
+            BotSessionService.force_stop()
+            print("✅ Database cleanup: All RUNNING sessions marked as FORCE_STOP.")
+        except Exception as e:
+            print(f"❌ Database cleanup failed: {e}")
 
     # Bot Control #####

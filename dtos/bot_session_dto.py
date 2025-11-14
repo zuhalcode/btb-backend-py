@@ -8,7 +8,7 @@ class BotSessionStatus(str, Enum):
     RUNNING = "RUNNING"
     STOPPED = "STOPPED"
     IDLE = "IDLE"
-    CRASHED = "CRASHED"
+    FORCE_STOP = "FORCE_STOP"
 
     def __str__(self):
         return self.value

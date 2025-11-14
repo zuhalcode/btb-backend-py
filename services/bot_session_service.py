@@ -6,6 +6,7 @@ from dtos.bot_session_dto import (
     BotSessionDTO,
     BotSessionUpdateDTO,
     BotSessionCreateDTO,
+    BotSessionStatus as Status,
 )
 
 import requests
@@ -218,4 +219,27 @@ class BotSessionService:
 
         except Exception as e:
             print("Error deleting Bot:", e)
+            raise e
+
+    # Force stop
+    @staticmethod
+    def force_stop():
+        try:
+            current_status = Status.RUNNING.value  # Ambil nilai string dari Enum
+
+            payload = {"status": Status.FORCE_STOP.value}
+
+            result = (
+                supabase.table(BotSessionService._table)
+                .update(payload)
+                .eq("status", current_status)
+                .execute()
+            )
+
+            return result.data
+
+        except Exception as e:
+            print(
+                f"Error updating all running sessions to {Status.FORCE_STOP.value}:", e
+            )
             raise e
