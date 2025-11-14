@@ -9,7 +9,6 @@ from fastapi import (
 )
 
 from services.trading_service import TradingService
-
 from utils.response import ResponseHandler
 
 import asyncio

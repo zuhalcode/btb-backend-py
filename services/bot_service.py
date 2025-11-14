@@ -9,12 +9,11 @@ from libs.env import (
 
 from datetime import datetime, timezone
 from services.bot_session_service import BotSessionService
-from dtos.bot_dto import BotResponseDTO, BotCreateDTO, BotUpdateDTO
-from dtos.bot_session_dto import BotSessionStatus as Status
+from dtos.bot_dto import BotResponseDTO, BotCreateDTO, BotUpdateDTO, BotStatus
+from dtos.bot_session_dto import BotSessionStatus as SessionStatus
 
 import requests
 import time
-import asyncio
 import threading
 
 
@@ -28,13 +27,51 @@ class BotService:
         self.client.REQUEST_RECVWINDOW = 5000
         self.client.API_URL = BINANCE_API_URL_TESTNET if testnet else BINANCE_API_URL
 
-    # CRUD
+    # Private Method
+    @staticmethod
+    def _change_status(id: str, target_status: BotStatus):
+        try:
+            bot = BotService.find_one(id)
+            if not bot:
+                raise ValueError(f"Bot {id} not found")
+
+            # Cari sesi yang sedang RUNNING untuk bot ini
+            running_session = BotSessionService.find_one_by_bot_id_and_status(
+                id, SessionStatus.RUNNING
+            )
+
+            # Jika ada sesi RUNNING
+            if running_session:
+                raise ValueError(
+                    f"Cannot change status '{bot['name'].capitalize()}'. "
+                    f"It is currently running on session {running_session['id']}."
+                )
+
+            # 2. 🚦 Pengecekan Status Sama
+            current_status = bot["status"]
+            if current_status == target_status:
+                # Gunakan capitalize untuk format pesan yang baik
+                status_name = target_status.value
+
+                # Melempar error karena status sudah sesuai target
+                raise ValueError(
+                    f"{bot['name'].capitalize()} is already {status_name}. Status change aborted."
+                )
+
+            # 3. Lanjutkan proses update jika status berbeda
+            return BotService.update(id, {"status": target_status})
+        except Exception as e:
+            print("Error changing Bot Status : ", e)
+            raise e
+
+    ##### CRUD #
+
     @staticmethod
     def find_all() -> list[BotResponseDTO]:
         try:
             result = (
                 supabase.table(BotService._table)
-                .select("id, name, config, status, created_at")
+                .select("*")
                 .order("created_at", desc=True)
                 .execute()
             )
@@ -49,10 +86,7 @@ class BotService:
     def find_one(id: str) -> BotResponseDTO:
         try:
             response = (
-                supabase.table(BotService._table)
-                .select("id, name, symbol, timeframe, config, created_at, updated_at")
-                .eq("id", id)
-                .execute()
+                supabase.table(BotService._table).select("*").eq("id", id).execute()
             )
 
             data = response.data[0]
@@ -125,7 +159,10 @@ class BotService:
             print("Error deleting Bot:", e)
             raise e
 
-    # Bot Control
+    # CRUD #####
+
+    ##### Bot Control #
+
     def check_connection(self):
         """Cek koneksi dan waktu server Binance"""
         try:
@@ -176,40 +213,56 @@ class BotService:
             if not bot:
                 raise ValueError(f"Bot {id} not found")
 
+            # 2️⃣ Cek apakah bot sudah ACTIVE
+            if bot["status"] != BotStatus.ACTIVE:
+                raise ValueError(f"Bot {id} is not active. Please activate it first.")
+
+            # 3️⃣ PRIORITAS: Cek apakah SUDAH ADA sesi yang RUNNING
+            running_session = BotSessionService.find_one_by_bot_id_and_status(
+                id, SessionStatus.RUNNING
+            )
+
+            if running_session:
+                raise ValueError(
+                    f"{bot['name'].capitalize()} is already running on session {running_session['id']}"
+                )
+
             # 2️⃣ Cek session terakhir ambil yg status = idle
             last_session = BotSessionService.find_one_by_bot_id_and_status(
-                id, Status.IDLE
+                id, SessionStatus.IDLE
             )
 
             session = last_session or BotSessionService.create(id)
 
-            if session and session["status"] == Status.RUNNING:
+            if session and session["status"] == SessionStatus.RUNNING:
                 raise ValueError(f"Bot {id} is already running")
 
             # 3️⃣ Update status ke running
-            if session["status"] == Status.IDLE:
+            if session["status"] == SessionStatus.IDLE:
                 session = BotSessionService.update(
                     session["id"],
                     {
-                        "status": Status.RUNNING,
+                        "status": SessionStatus.RUNNING,
                         "start_time": datetime.now(timezone.utc).isoformat(),
                     },
                 )
 
             # 🔥 Jalankan loop realtime di background
-            BotService.run(bot, session)
+            BotService.run(bot)
 
             # 5. Return
             return {"session": session, "bot": bot}
 
         except Exception as e:
-            print("Bot starting error : ", e)
+            print("Bot starting error : ", str(e))
             raise e
 
     @staticmethod
     def run(bot: dict):
         try:
             bot_id = bot["id"]
+            config = bot.get("config", {})
+            print(config)
 
             # kalau sudah running, abaikan
             if BotService._is_running.get(bot_id):
@@ -225,7 +278,7 @@ class BotService:
 
                     # cek status di DB (fail-safe)
                     current_session = BotSessionService.find_one_by_status(
-                        bot_id, Status.RUNNING
+                        bot_id, SessionStatus.RUNNING
                     )
 
                     if not current_session:
@@ -253,7 +306,7 @@ class BotService:
         try:
             BotService._is_running[id] = False
             session = BotSessionService.find_one_by_bot_id_and_status(
-                id, Status.RUNNING
+                id, SessionStatus.RUNNING
             )
 
             if not session:
@@ -266,7 +319,7 @@ class BotService:
             bot_stopped = BotSessionService.update(
                 session["id"],
                 {
-                    "status": Status.STOPPED,
+                    "status": SessionStatus.STOPPED,
                     "end_time": end_time.isoformat(),
                     "uptime_seconds": uptime_seconds,
                 },
@@ -277,3 +330,5 @@ class BotService:
         except Exception as e:
             print("Error Stopping Bot : ", e)
             raise e
+
+    # Bot Control #####

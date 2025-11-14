@@ -12,7 +12,7 @@ from fastapi.responses import JSONResponse
 from services.trading_service import TradingService
 from utils.response import ResponseHandler
 from services.bot_service import BotService
-from dtos.bot_dto import BotCreateDTO, BotUpdateDTO
+from dtos.bot_dto import BotCreateDTO, BotUpdateDTO, BotStatus
 
 import asyncio
 
@@ -71,6 +71,20 @@ class BotController:
         except Exception as e:
             return ResponseHandler.error(e, "Failed to connect to Binance")
 
+    def activate(id: str) -> JSONResponse:
+        try:
+            result = BotService._change_status(id, BotStatus.ACTIVE)
+            return ResponseHandler.success(result, "Bot activated Successfully")
+        except Exception as e:
+            return ResponseHandler.error(e, "Bot activated Failure")
+
+    def deactivate(id: str) -> JSONResponse:
+        try:
+            result = BotService._change_status(id, BotStatus.INACTIVE)
+            return ResponseHandler.success(result, "Bot deactivated Successfully")
+        except Exception as e:
+            return ResponseHandler.error(e, "Bot deactivated Failure")
+
     def start(id: str) -> JSONResponse:
         try:
             bot_data = BotService.start(id)
@@ -89,6 +103,7 @@ class BotController:
         except Exception as e:
             return ResponseHandler.error(e, "Bot Stopping failed")
 
+    # Grid Strategy
     async def start_grid_trading(req: Request):
         try:
             bot = TradingService.get_instance()

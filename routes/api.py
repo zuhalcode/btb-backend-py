@@ -5,6 +5,8 @@ router = APIRouter(prefix="/api/bots")
 
 # Bot Control
 router.get("/check-connection")(BotController.check_connection)
+router.post("/{id}/activate")(BotController.activate)
+router.post("/{id}/deactivate")(BotController.deactivate)
 router.post("/{id}/start")(BotController.start)
 router.post("/{id}/stop")(BotController.stop)
 

@@ -2,7 +2,7 @@ import pandas as pd
 from datetime import datetime
 
 
-class GridTrading:
+class GridTradingStrategy:
     def __init__(
         self,
         symbol,

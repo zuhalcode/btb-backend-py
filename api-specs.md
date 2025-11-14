@@ -4,7 +4,71 @@
 
 **Base URL:** `http://localhost:8000/api`
 
-## 📚 ARSITEKTUR FOLDER
+## 📚 ARSITEKTUR BOT
+
+```mermaid
+
+    %% ======================================================
+    %% LAYER 1 — MARKET DATA SOURCE
+    %% ======================================================
+    subgraph L1[Layer 1: Market Data Source]
+    A[MarketService<br/>(Exchange WS / REST API)]
+    end
+
+    %% ======================================================
+    %% LAYER 2 — BOT ENGINE
+    %% ======================================================
+    subgraph L2[Layer 2: Bot Engine]
+        B[Bot Engine<br/>(Strategy Core)]
+        B1[Risk & Position Manager]
+        B2[Order Executor]
+
+        B --> B1
+        B --> B2
+    end
+
+    %% Flow from Market → Bot
+    A --> |Live Price Feed| B
+
+    %% ======================================================
+    %% LAYER 3 — DATA STORAGE
+    %% ======================================================
+    subgraph L3[Layer 3: Data Storage]
+        C[(bot_trades)]
+        D[(bot_session_states)]
+    end
+
+    B2 --> |Record Trades| C
+    B1 --> |Update Snapshot| D
+
+    %% ======================================================
+    %% LAYER 4 — SESSION & EVENT LAYER
+    %% ======================================================
+    subgraph L4[Layer 4: Bot Session Manager & Event Dispatcher]
+        E[BotSession Manager<br/>(Runtime Monitor)]
+    end
+
+    B --> |Emit Status & Events| E
+
+    %% ======================================================
+    %% LAYER 5 — SOCKET LAYER
+    %% ======================================================
+    subgraph L5[Layer 5: Socket Layer]
+        F[SocketService<br/>(WebSocket Hub)]
+    end
+
+    E --> |Push Updates| F
+
+    %% ======================================================
+    %% LAYER 6 — FRONTEND
+    %% ======================================================
+    subgraph L6[Layer 6: Frontend]
+        G[Web Clients<br/>(Dashboards)]
+    end
+
+    F --> |Broadcast Messages| G
+
+```
 
 #### Controllers
 
@@ -16,35 +80,10 @@
 
 #### Services
 
-- `bot_service.py`
-<!-- * `trade_service.py`
 - `market_service.py`
-- `strategy_service.py`
-- `bot_service.py` -->
-
-<!-- #### Models
-
-* `account_model.py`
-* `trade_model.py`
-* `market_model.py`
-* `strategy_model.py`
-* `bot_model.py` -->
-
-<!-- #### Schemas
-
-* `account_schema.py`
-* `trade_schema.py`
-* `market_schema.py`
-* `strategy_schema.py`
-* `bot_schema.py` -->
-
-<!-- ## 🔐 AUTHENTICATION (Soon)
-
-JWT token header:
-
-```
-Authorization: Bearer <token>
-``` -->
+- `bot_service.py`
+- `bot_session_service.py`
+- `bot_event_service.py`
 
 ## 🧾 BOT CONTROLLER
 
@@ -107,8 +146,6 @@ class AccountModel(BaseModel):
 ```
 
 #### `POST /bots`
-
-<!-- **Model:** `account_model.py` -->
 
 **Summary :** Create new bot
 
@@ -188,44 +225,6 @@ class AccountModel(BaseModel):
 ```
 
 ### BOT CONTROL
-
-#### `DELETE /bot/:id`
-
-<!-- **Model:** `account_model.py` -->
-
-**Summary :** Get list of all bots
-
-**Service Logic :** `BotService.delete()`
-
-<!-- **Model:**
-```python
-class AccountModel(BaseModel):
-    account_id: str
-    total_balance: float
-    available_balance: float
-    positions_value: float
-    unrealized_pnl: float
-    open_positions: int
-``` -->
-
-**Request:**
-
-```json
-{}
-```
-
-**Response:**
-
-```json
-{
-  "meta": {
-    "status": 200,
-    "message": "Bot deleted successfully"
-  },
-
-  "data": { "id": "bot_1" }
-}
-```
 
 #### `POST /bot/:id/start`
 
