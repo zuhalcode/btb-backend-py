@@ -3,6 +3,7 @@ from controllers.bot_controller import BotController
 
 router = APIRouter(prefix="/api/bots")
 
+
 # Bot Control
 router.get("/check-connection")(BotController.check_connection)
 router.post("/{id}/activate")(BotController.activate)

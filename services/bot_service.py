@@ -1,12 +1,10 @@
-from typing import Optional
-from binance.client import Client
+import requests
+import time
+import threading
+import logging
+import multiprocessing
+
 from libs.supabase import supabase
-from libs.env import (
-    BINANCE_API_KEY,
-    BINANCE_API_SECRET,
-    BINANCE_API_URL_TESTNET,
-    BINANCE_API_URL,
-)
 
 from datetime import datetime, timezone
 
@@ -16,24 +14,18 @@ from services.market_service import MarketService
 from dtos.bot_dto import BotResponseDTO, BotCreateDTO, BotUpdateDTO, BotStatus
 from dtos.bot_session_dto import BotSessionStatus as SessionStatus
 
-import requests
-import time
-import threading
-
 
 class BotService:
     _table = "bots"
     _is_running = {}
+    _processes = {}
 
-    def __init__(self, testnet: bool = True):
-        self.testnet = testnet
-        self.client = Client(BINANCE_API_KEY, BINANCE_API_SECRET, testnet=testnet)
-        self.client.REQUEST_RECVWINDOW = 5000
-        self.client.API_URL = BINANCE_API_URL_TESTNET if testnet else BINANCE_API_URL
+    def __init__(self, market_service: MarketService):
+        self.market = market_service
 
     # Private Method
     @staticmethod
-    def _change_status(id: str, target_status: BotStatus):
+    def change_status(id: str, target_status: BotStatus):
         try:
             bot = BotService.find_one(id)
             if not bot:
@@ -65,7 +57,7 @@ class BotService:
             # 3. Lanjutkan proses update jika status berbeda
             return BotService.update(id, {"status": target_status})
         except Exception as e:
-            print("Error changing Bot Status : ", e)
+            logging.info("Error changing Bot Status : ", e)
             raise e
 
     ##### CRUD #
@@ -83,7 +75,7 @@ class BotService:
             return result.data
 
         except Exception as e:
-            print("Error in retrieve data:", str(e))
+            logging.info(f"Error in retrieve data: {str(e)}")
             raise e
 
     @staticmethod
@@ -98,7 +90,7 @@ class BotService:
             return data
 
         except Exception as e:
-            print("Error in retrieve data:", str(e))
+            logging.info(f"Error in retrieve data: {str(e)}")
             raise e
 
     @staticmethod
@@ -108,7 +100,7 @@ class BotService:
             return result.data
 
         except Exception as e:
-            print("Error creating Bot:", e)
+            logging.info("Error creating Bot:", e)
             raise e
 
     @staticmethod
@@ -134,7 +126,7 @@ class BotService:
             return result.data
 
         except Exception as e:
-            print("Error updating Bot:", e)
+            logging.info("Error updating Bot:", e)
             raise e
 
     @staticmethod
@@ -160,7 +152,7 @@ class BotService:
             return result.data
 
         except Exception as e:
-            print("Error deleting Bot:", e)
+            logging.info("Error deleting Bot:", e)
             raise e
 
     # CRUD #####
@@ -168,10 +160,10 @@ class BotService:
     ##### Bot Control #
 
     def check_connection(self):
-        """Cek koneksi dan waktu server Binance"""
+        binance = self.market_service
         try:
-            ping = requests.get(f"{self.client.API_URL}/v3/ping", timeout=5)
-            server_time = requests.get(f"{self.client.API_URL}/v3/time", timeout=5)
+            ping = requests.get(f"{binance.client.API_URL}/v3/ping", timeout=5)
+            server_time = requests.get(f"{binance.client.API_URL}/v3/time", timeout=5)
             ping.raise_for_status()
             server_time.raise_for_status()
             st = server_time.json()
@@ -186,7 +178,7 @@ class BotService:
 
                 result = {
                     "status": "connected",
-                    "testnet": self.testnet,
+                    "testnet": binance.testnet,
                     "ping_status": ping.status_code,
                     "serverTime": st["serverTime"],
                     "localTime": local_ts,
@@ -195,7 +187,7 @@ class BotService:
             else:
                 result = {
                     "status": "disconnected",
-                    "testnet": self.testnet,
+                    "testnet": binance.testnet,
                     "ping_status": ping.status_code,
                     "server_status": server_time.status_code,
                 }
@@ -203,11 +195,10 @@ class BotService:
             return result
 
         except Exception as e:
-            print("❌ Connection check failed:", e)
+            logging.info("❌ Connection check failed:", e)
             raise e
 
-    @staticmethod
-    def start(id: str):
+    def start(self, id: str):
         try:
             session = None
 
@@ -252,58 +243,65 @@ class BotService:
                 )
 
             # 🔥 Jalankan loop realtime di background
-            BotService.run(bot)
+            self.run(bot)
 
             # 5. Return
-            return {"session": session, "bot": bot}
+            return {"session": session}
 
         except Exception as e:
-            print("Bot starting error : ", str(e))
+            logging.error("Bot starting error bro : %s", e)
             raise e
 
-    @staticmethod
-    def run(bot: dict):
+    def run(self, bot: dict):
         try:
             bot_id = bot["id"]
             config = bot.get("config", {})
-            print(config)
 
-            # kalau sudah running, abaikan
+            print("ini config bot gw : ", config)
+
+            ticker = config["ticker"]
+            bot_name = bot.get("name")
+
+            if not ticker:
+                logging.error(f"[{bot_id}] No ticker found")
+                return
+
             if BotService._is_running.get(bot_id):
-                print(f"Bot {bot_id} is running")
+                logging.info(f"[{bot_id}] Already running")
                 return
 
             BotService._is_running[bot_id] = True
-            print("List bot running : ", BotService._is_running)
 
-            def loop():
-                print(f"[{bot_id}] starting real-time loop...")
-                while BotService._is_running.get(bot_id, False):
+            p = multiprocessing.Process(
+                target=BotService._worker_process,
+                args=(bot_id, ticker, bot_name),
+                daemon=True,
+            )
+            p.start()
 
-                    # cek status di DB (fail-safe)
-                    current_session = BotSessionService.find_one_by_status(
-                        bot_id, SessionStatus.RUNNING
-                    )
-
-                    if not current_session:
-                        print(f"[{bot_id}] no running session, stop loop.")
-                        break
-
-                    print(f"[{bot['name']}] is running... ")
-
-                    # Jalankan get live price disini
-                    # live_price = market_service.get_live_price()
-
-                    time.sleep(1)
-
-                print(f"[{bot_id}] stopped loop.")
-
-            thread = threading.Thread(target=loop, daemon=True)
-            thread.start()
+            BotService._processes[bot_id] = p
+            logging.info(f"[{bot_id}] Worker process started")
 
         except Exception as e:
-            print("Error running Bot : ", e)
+            logging.error("Error running Bot : %s", e)
             raise e
+
+    @staticmethod
+    def _worker_process(bot_id, ticker, bot_name):
+        from services.market_service import MarketService
+
+        market = MarketService()
+
+        logging.info(f"[{bot_id}] Worker running for {ticker}")
+
+        while True:
+            try:
+                live_price = market.get_live_price(ticker)
+                print(f"[{bot_name}] price = {live_price}")
+            except Exception as e:
+                logging.error(f"[{bot_id}] Error: {e}")
+
+            time.sleep(1)
 
     @staticmethod
     def stop(id: str):
@@ -323,7 +321,7 @@ class BotService:
             bot_stopped = BotSessionService.update(
                 session["id"],
                 {
-                    "status": SessionStatus.STOPPED,
+                    "status": SessionStatus.IDLE,
                     "end_time": end_time.isoformat(),
                     "uptime_seconds": uptime_seconds,
                 },
@@ -332,26 +330,7 @@ class BotService:
             return bot_stopped
 
         except Exception as e:
-            print("Error Stopping Bot : ", e)
+            logging.error("Error Stopping Bot : %s", e)
             raise e
-
-    @staticmethod
-    def force_stop_all_running_sessions():
-        """Menghentikan secara paksa semua sesi yang berstatus RUNNING saat shutdown."""
-        print(
-            "\n[SHUTDOWN HOOK] Initiating force stop and cleanup for all active bots..."
-        )
-
-        # 1. Hentikan flag in-memory untuk semua bot yang sedang berjalan
-        for bot_id in BotService._is_running:
-            BotService._is_running[bot_id] = False
-            print(f"[{bot_id}] Flag in-memory set to False.")
-
-        # 2. Update semua sesi RUNNING di DB menjadi ERROR/STOPPED (penting!)
-        try:
-            BotSessionService.force_stop()
-            print("✅ Database cleanup: All RUNNING sessions marked as FORCE_STOP.")
-        except Exception as e:
-            print(f"❌ Database cleanup failed: {e}")
 
     # Bot Control #####

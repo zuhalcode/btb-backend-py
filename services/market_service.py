@@ -1,4 +1,6 @@
 import requests
+import logging
+
 from binance.client import Client
 from libs.env import (
     BINANCE_API_KEY,
@@ -20,13 +22,13 @@ class MarketService:
     def get_live_price(self, symbol: str) -> float:
         try:
             base_url = self.client.API_URL
-            api_endpoint = f"{base_url}/api/v3/ticker/price?symbol={symbol.upper()}"
+            api_endpoint = f"{base_url}/v3/ticker/price?symbol={symbol}"
 
             res = requests.get(api_endpoint)
             res.raise_for_status()
             return float(res.json()["price"])
         except Exception as e:
-            print(f"[MarketService] Error get_live_price({symbol}): {e}")
+            print(f"[MarketService] Error get_live_price({symbol}): {e} \n")
             return None
 
     @staticmethod

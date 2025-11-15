@@ -13,13 +13,14 @@ from services.trading_service import TradingService
 from services.bot_service import BotService
 from services.market_service import MarketService
 
+from managers.bot_manager import BotManager
+
 from fastapi.responses import JSONResponse
 from utils.response import ResponseHandler
 from dtos.bot_dto import BotCreateDTO, BotUpdateDTO, BotStatus
 
 
 class BotController:
-    market_service_instance = MarketService()
 
     # CRUD
     def find_all() -> JSONResponse:
@@ -66,8 +67,12 @@ class BotController:
     # Bot Control
     def check_connection():
         try:
-            bot = BotService()
-            result = bot.check_connection()
+            worker = BotManager.get()
+
+            if worker is None:
+                return ResponseHandler.error(None, "No bot worker running")
+
+            result = worker.service.check_connection()
             return ResponseHandler.success(result, "Binance connection OK")
 
         except Exception as e:
@@ -75,32 +80,56 @@ class BotController:
 
     def activate(id: str) -> JSONResponse:
         try:
-            result = BotService._change_status(id, BotStatus.ACTIVE)
+            worker = BotManager.get()
+
+            if worker is None:
+                return ResponseHandler.error(None, "No bot worker running")
+
+            result = worker.service.change_status(id, BotStatus.ACTIVE)
             return ResponseHandler.success(result, "Bot activated Successfully")
         except Exception as e:
             return ResponseHandler.error(e, "Bot activated Failure")
 
     def deactivate(id: str) -> JSONResponse:
         try:
-            result = BotService._change_status(id, BotStatus.INACTIVE)
+            worker = BotManager.get()
+
+            if worker is None:
+                return ResponseHandler.error(None, "No bot worker running")
+
+            result = worker.service.change_status(id, BotStatus.INACTIVE)
             return ResponseHandler.success(result, "Bot deactivated Successfully")
         except Exception as e:
             return ResponseHandler.error(e, "Bot deactivated Failure")
 
     def start(id: str) -> JSONResponse:
         try:
-            bot_data = BotService.start(id)
+            worker = BotManager.get()
+
+            if worker is None:
+                return ResponseHandler.error(None, "No bot worker running")
+
+            bot_data = worker.service.start(id)
+
             if not bot_data:
                 return ResponseHandler.error(None, f"Bot with id {id} not found")
+
             return ResponseHandler.success(bot_data, "Bot Started Successfully")
         except Exception as e:
             return ResponseHandler.error(e, "Bot Starting failed")
 
     def stop(id: str) -> JSONResponse:
         try:
-            bot_data = BotService.stop(id)
+            worker = BotManager.get()
+
+            if worker is None:
+                return ResponseHandler.error(None, "No bot worker running")
+
+            bot_data = worker.service.stop(id)
+
             if not bot_data:
                 return ResponseHandler.error(None, f"Bot with id {id} not found")
+
             return ResponseHandler.success(bot_data, "Bot Stopped Successfully")
         except Exception as e:
             return ResponseHandler.error(e, "Bot Stopping failed")

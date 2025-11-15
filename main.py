@@ -1,12 +1,28 @@
+import asyncio
+
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
 from routes.api import router as trading_router
 from routes.ws import router as ws_router
-from fastapi.middleware.cors import CORSMiddleware
 from services.bot_service import BotService
+from workers.bot_worker import BotWorker
+from managers.bot_manager import BotManager
 
 
-app = FastAPI(title="Testnet Grid Trading API")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # ===== STARTUP =====
+    BotManager.create()
+
+    yield
+
+    # ===== SHUTDOWN =====
+    BotManager.stop()
+
+
+app = FastAPI(title="Testnet Grid Trading API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
