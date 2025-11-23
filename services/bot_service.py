@@ -1,6 +1,5 @@
 import requests
 import time
-import threading
 import logging
 import multiprocessing
 
@@ -10,6 +9,9 @@ from datetime import datetime, timezone
 
 from services.bot_session_service import BotSessionService
 from services.market_service import MarketService
+from services.indicator_service import IndicatorService
+from services.data_loader_service import DataLoaderService
+from services.backtest_service import BacktestService
 
 from dtos.bot_dto import BotResponseDTO, BotCreateDTO, BotUpdateDTO, BotStatus
 from dtos.bot_session_dto import BotSessionStatus as SessionStatus
@@ -254,11 +256,8 @@ class BotService:
 
     def run(self, bot: dict):
         try:
-            bot_id = bot["id"]
+            bot_id = bot.get("id")
             config = bot.get("config", {})
-
-            print("ini config bot gw : ", config)
-
             ticker = config["ticker"]
             bot_name = bot.get("name")
 
@@ -288,16 +287,18 @@ class BotService:
 
     @staticmethod
     def _worker_process(bot_id, ticker, bot_name):
-        from services.market_service import MarketService
-
         market = MarketService()
+        df = BacktestService.test()
 
         logging.info(f"[{bot_id}] Worker running for {ticker}")
 
         while True:
             try:
-                live_price = market.get_live_price(ticker)
-                print(f"[{bot_name}] price = {live_price}")
+                # live_price = market.get_live_price(ticker)
+                # klines = market.get_klines(ticker)
+                # print(f"[{bot_name} - {ticker}] price = {live_price} - EMA13 = {ema13}")
+                # print(f"[{bot_name} - {ticker}]\nEMA13 = {ema13[-10:]}")
+                logging.info(f"{bot_name}")
             except Exception as e:
                 logging.error(f"[{bot_id}] Error: {e}")
 

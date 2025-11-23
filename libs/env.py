@@ -11,4 +11,4 @@ BINANCE_API_URL_TESTNET = os.getenv("BINANCE_API_URL_TESTNET")
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 
-TESTNET = os.getenv("TESTNET")
+TESTNET = os.getenv("TESTNET", "False").lower() == "true"
