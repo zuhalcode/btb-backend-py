@@ -1,9 +1,7 @@
-# managers/bot_manager.py
 import asyncio
 import logging
 
 from workers.bot_worker import BotWorker
-from services.market_service import MarketService
 
 
 class BotManager:

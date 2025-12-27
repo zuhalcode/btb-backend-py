@@ -5,7 +5,8 @@ from libs.env import (
     BINANCE_API_URL_TESTNET,
     BINANCE_API_URL,
 )
-from services.bot_action_service import BotActionService
+
+from services.bot import BotActionService
 
 import requests
 import time

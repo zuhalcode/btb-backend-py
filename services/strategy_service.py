@@ -1,21 +1,23 @@
 import pandas as pd
+import numpy as np
+import os
 
 from typing import Literal, Union
 
-from services.data_loader_service import DataLoaderService
+from utils.logger import time_logger
+
+from services.data.data_loader_service import DataLoaderService
 from services.indicator_service import IndicatorService
+from services.data.data_service import DataService
+from services.candlestick_service import CandlestickIndicator
 
 
 class StrategyService:
-    _df_1h = DataLoaderService.load_by_tf("1h")
-    _df_4h = DataLoaderService.load_by_tf("4h")
-    _df_1d = DataLoaderService.load_by_tf("1d")
-    _df_1w = DataLoaderService.load_by_tf("1w")
 
     @staticmethod
     def ema_cross():
         print("USE EMA CROSS STRATEGY")
-        df = StrategyService._df_1h.copy()
+        df = StrategyService.df_1h.copy()
         closes = df["close"]
 
         # Backtesting
@@ -40,9 +42,9 @@ class StrategyService:
     @staticmethod
     def ema_filter_multi_tf():
         print("USE EMA FILTER MULTI TIMEFRAME STRATEGY")
-        df_1h = StrategyService._df_1h.copy()
-        df_4h = StrategyService._df_4h.copy()
-        df_1d = StrategyService._df_1d.copy()
+        df_1h = StrategyService.df_1h.copy()
+        df_4h = StrategyService.df_4h.copy()
+        df_1d = StrategyService.df_1d.copy()
 
         df_1h["open_time"] = pd.to_datetime(df_1h["open_time"]).dt.tz_convert(
             "Asia/Jakarta"
@@ -128,7 +130,7 @@ class StrategyService:
     @staticmethod
     def rsi_moment():
         print("USE RSI MOMENT STRATEGY")
-        df = StrategyService._df_1h.copy()
+        df = StrategyService.df_1h.copy()
         closes = df["close"]
 
         df["rsi"] = IndicatorService.rsi_series(closes)
@@ -149,7 +151,7 @@ class StrategyService:
     @staticmethod
     def bollinger_bands_moment():
         print("USE BOLLINGER BANDS MOMENT STRATEGY")
-        df = StrategyService._df_1h.copy()
+        df = StrategyService.df_1h.copy()
         closes = df["close"]
 
         upper_band, lower_band = IndicatorService.bollinger_bands_series(closes)
@@ -176,7 +178,7 @@ class StrategyService:
     @staticmethod
     def stoch_moment(k_length: int = 14, k_smoothing: int = 1, d_smoothing: int = 3):
         print("USE STOCHASTIC MOMENT STRATEGY")
-        df = StrategyService._df_1h.copy()
+        df = StrategyService.df_1h.copy()
 
         smoothed_k, d_list = IndicatorService.stochastic_series(
             closes=df["close"],
@@ -206,7 +208,7 @@ class StrategyService:
         ] = "classic",
     ):
         print(f"USE MACD MOMENT STRATEGY ({method})")
-        df = StrategyService._df_1h.copy()
+        df = StrategyService.df_1h.copy()
         closes = df["close"]
 
         macd_line, signal_line, histogram = IndicatorService.macd_series(closes)
@@ -271,7 +273,7 @@ class StrategyService:
             f"\nUSE SCALP MOMENT STRATEGY use EMA200 : {use_ema200}, conservative : {conservative}"
         )
 
-        df = StrategyService._df_1h.copy()
+        df = StrategyService.df_1h.copy()
         closes = df["close"]
 
         # Siapkan OHLC untuk ATR
@@ -349,4 +351,185 @@ class StrategyService:
         )
 
         # RETURN hanya bar yang ada sinyal
+        return df[(df["buy"]) | (df["sell"])].reset_index(drop=True)
+
+    @staticmethod
+    def scalp_1h_2():
+        print(f"\nUSE SCALP MOMENT STRATEGY 2")
+
+        df = StrategyService.df_1h.copy()
+        closes = df["close"]
+
+        # Siapkan OHLC untuk ATR
+        prices = [
+            {"high": h, "low": l, "close": c}
+            for h, l, c in zip(df["high"], df["low"], df["close"])
+        ]
+
+        # ==========================
+        # RSI / Stochastic Filter
+        # ==========================
+        df["rsi"] = IndicatorService.rsi_series(closes)
+        df["rsi_ok_bull"] = df["rsi"] < 70
+        df["rsi_ok_bear"] = df["rsi"] > 30
+
+        smoothed_k, d_list = IndicatorService.stochastic_series(
+            df["high"], df["low"], closes, 5, 3, 3
+        )
+
+        df["%K"] = smoothed_k
+        df["%D"] = d_list
+
+        df["stoch_ok_bull"] = (df["%K"].shift(1) < df["%D"].shift(1)) & (
+            df["%K"] > df["%D"]
+        )
+        df["stoch_ok_bear"] = (df["%K"].shift(1) > df["%D"].shift(1)) & (
+            df["%K"] < df["%D"]
+        )
+
+        # ==========================
+        # ATR
+        # ==========================
+        df["atr"] = IndicatorService.atr_series(prices, length=14)
+        atr = df["atr"]
+        atr_sma = atr.rolling(14).mean()
+        df["atr_ok"] = (atr > atr_sma) & atr.notna()
+        df["atr_pct"] = (atr / df["close"]) * 100
+
+        upper_band, lower_band = IndicatorService.bollinger_bands_series(closes)
+
+        upper_band = pd.Series(upper_band).fillna(np.nan)
+        lower_band = pd.Series(lower_band).fillna(np.nan)
+
+        df["bollinger_ok"] = (df["close"] > lower_band) & (df["close"] < upper_band)
+
+        # ==========================
+        # MACD
+        # ==========================
+        macd_line, signal_line, histogram = IndicatorService.macd_series(closes)
+        df["macd"] = macd_line
+        df["macd_signal"] = signal_line
+        df["macd_hist"] = histogram
+        df["macd_hist_diff"] = df["macd_hist"].diff()
+
+        df["momentum_ok"] = df["macd_hist_diff"] > 0
+        df["momentum_fail"] = df["macd_hist_diff"] < 0
+
+        # ==========================
+        # EMA
+        # ==========================
+        df["ema13"] = IndicatorService.ema_series(closes, 13)
+        df["ema21"] = IndicatorService.ema_series(closes, 21)
+        df["ema50"] = IndicatorService.ema_series(closes, 50)
+        df["ema100"] = IndicatorService.ema_series(closes, 100)
+
+        df["bull"] = (
+            (df["ema13"] > df["ema21"])
+            & (df["ema21"] > df["ema50"])
+            & (df["ema50"] > df["ema100"])
+        )
+        df["bear"] = (
+            (df["ema13"] < df["ema21"])
+            & (df["ema21"] < df["ema50"])
+            & (df["ema50"] < df["ema100"])
+        )
+
+        # print(df[["open_time", "open", "macd_hist", "macd_hist_diff"]].tail(10))
+
+        # ==========================
+        # BUY / SELL SIGNALS
+        # ==========================
+        df["buy"] = (
+            df["bull"]
+            & df["atr_ok"]
+            & df["bollinger_ok"]
+            & df["momentum_ok"]
+            & df["rsi_ok_bull"]
+            & df["stoch_ok_bull"]
+        )
+
+        df["sell"] = (
+            df["bear"]
+            & df["atr_ok"]
+            & df["bollinger_ok"]
+            & df["momentum_fail"]
+            & df["rsi_ok_bear"]
+            & df["stoch_ok_bear"]
+        )
+
+        # RETURN hanya bar yang ada sinyal
+        return df[(df["buy"]) | (df["sell"])].reset_index(drop=True)
+
+    @staticmethod
+    def candlestick_entry():
+        df = DataService.get_df_1h()
+        df = CandlestickIndicator.bullish_marubozu(df)
+        df = CandlestickIndicator.bullish_hammer(df)
+        df = CandlestickIndicator.bullish_inverted_hammer(df)
+        df = CandlestickIndicator.bullish_long_white(df)
+
+        closes = df["close"]
+        df["rsi"] = IndicatorService.rsi_series(closes)
+
+        # print()
+        # print(
+        #     df.loc[
+        #         df["candle"].notna(),
+        #         ["open_time", "open", "high", "low", "close", "candle"],
+        #     ].tail(50)
+        # )
+
+        # return
+
+        # ==========================
+        # BUY SIGNAL (CANDLE)
+        # ==========================
+        df["buy_signal"] = df["candle"].isin(
+            ["marubozu", "hammer", "inverted_hammer", "long_white"]
+        )
+
+        # ==========================
+        # INIT STATE
+        # ==========================
+        df["buy"] = False
+        df["sell"] = False
+        df["buy_price"] = None
+        df["sell_price"] = None
+        df["in_position"] = False
+
+        df["candle_before"] = None
+        df["rsi_before"] = None
+
+        tp_pct = 1.4
+        tp = 1 + (tp_pct / 100)
+
+        # ==========================
+        # STATEFUL LOOP
+        # ==========================
+        for i in range(1, len(df)):
+
+            # ---- ENTRY ----
+            if not df.at[i - 1, "in_position"]:
+                if df.at[i - 1, "buy_signal"] and df.at[i - 1, "rsi"] < 50:
+                    df.at[i, "buy"] = True
+                    df.at[i, "buy_price"] = df.at[i, "open"]
+                    df.at[i, "candle_before"] = df.at[i - 1, "candle"]  # <---
+                    df.at[i, "rsi_before"] = df.at[i - 1, "rsi"]  # <--- TAMBAHAN INTI
+                    df.at[i, "in_position"] = True
+
+            # ---- HOLD / EXIT ----
+            else:
+                df.at[i, "buy_price"] = df.at[i - 1, "buy_price"]
+                df.at[i, "in_position"] = True
+
+                # TP HIT
+                if df.at[i, "high"] >= df.at[i, "buy_price"] * tp:
+                    df.at[i, "sell"] = True
+                    df.at[i, "sell_price"] = df.at[i, "buy_price"] * tp
+                    df.at[i, "in_position"] = False
+                    df.at[i, "buy_price"] = None
+
+        # ==========================
+        # RETURN SIGNALS ONLY
+        # ==========================
         return df[(df["buy"]) | (df["sell"])].reset_index(drop=True)

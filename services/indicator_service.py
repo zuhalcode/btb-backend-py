@@ -1,3 +1,5 @@
+import numpy as np
+
 from typing import List, Sequence, Optional, Dict
 
 
@@ -177,3 +179,28 @@ class IndicatorService:
             prev_atr = curr_atr
 
         return atr
+
+    @staticmethod
+    def ma_series(series: Sequence[float], length: int = 20) -> List[Optional[float]]:
+        """
+        Simple Moving Average (SMA)
+        series : close price series
+        length : periode MA
+        return : list SMA (None sebelum cukup data)
+        """
+
+        n = len(series)
+        if n == 0 or length <= 0:
+            return []
+
+        arr = np.asarray(series, dtype=float)
+
+        # SMA via convolution
+        kernel = np.ones(length, dtype=float) / float(length)
+        sma = np.convolve(arr, kernel, mode="valid")
+
+        # Pad None di awal agar panjang sama
+        out = [None] * (length - 1)
+        out.extend(sma.tolist())
+
+        return out

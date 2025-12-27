@@ -10,7 +10,7 @@ from fastapi import (
 )
 
 from services.trading_service import TradingService
-from services.bot_service import BotService
+from services.bot import BotService
 from services.market_service import MarketService
 
 from managers.bot_manager import BotManager

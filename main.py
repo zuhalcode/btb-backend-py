@@ -1,13 +1,9 @@
-import asyncio
-
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from routes.api import router as trading_router
 from routes.ws import router as ws_router
-from services.bot_service import BotService
-from workers.bot_worker import BotWorker
 from managers.bot_manager import BotManager
 
 

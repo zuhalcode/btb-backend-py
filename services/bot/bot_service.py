@@ -4,14 +4,16 @@ import logging
 import multiprocessing
 
 from libs.supabase import supabase
+from utils.logger import live_stopwatch
 
 from datetime import datetime, timezone
 
-from services.bot_session_service import BotSessionService
+from .bot_session_service import BotSessionService
+
 from services.market_service import MarketService
-from services.indicator_service import IndicatorService
-from services.data_loader_service import DataLoaderService
 from services.backtest_service import BacktestService
+from services.data import DataService
+from services.indicator_cache_service import IndicatorCacheService
 
 from dtos.bot_dto import BotResponseDTO, BotCreateDTO, BotUpdateDTO, BotStatus
 from dtos.bot_session_dto import BotSessionStatus as SessionStatus
@@ -21,6 +23,7 @@ class BotService:
     _table = "bots"
     _is_running = {}
     _processes = {}
+    _call = 1
 
     def __init__(self, market_service: MarketService):
         self.market = market_service
@@ -270,7 +273,6 @@ class BotService:
                 return
 
             BotService._is_running[bot_id] = True
-
             p = multiprocessing.Process(
                 target=BotService._worker_process,
                 args=(bot_id, ticker, bot_name),
@@ -287,10 +289,12 @@ class BotService:
 
     @staticmethod
     def _worker_process(bot_id, ticker, bot_name):
+        DataService.init()
         market = MarketService()
-        df = BacktestService.test()
 
-        logging.info(f"[{bot_id}] Worker running for {ticker}")
+        df = live_stopwatch(BacktestService.test_candlestick)()
+
+        # logging.info(f"[{bot_id}] Worker running for {ticker}")
 
         while True:
             try:

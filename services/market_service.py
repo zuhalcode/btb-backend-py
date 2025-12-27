@@ -26,7 +26,7 @@ class MarketService:
 
         # Logging environment
         env = "TESTNET" if self.testnet else "MAINNET"
-        print(f"ini env : {env} karena testnet = {self.testnet}")
+
         logging.warning(
             f"[MarketService] Running on {env} — URL = {self.client.API_URL}"
         )

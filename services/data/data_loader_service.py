@@ -23,16 +23,19 @@ class DataLoaderService:
         if not os.path.exists(path):
             raise FileNotFoundError(f"File tidak ditemukan: {path}")
 
-        return DataLoaderService._load_csv(path)
-
-    @staticmethod
-    def _load_csv(path: str):
         df = pd.read_csv(path, parse_dates=["open_time"])
 
         # Pastikan tidak ada null mengganggu
-        df = df.dropna(subset=["open_time"]).reset_index(drop=True)
+        df = df.dropna(subset=["open_time"])
 
-        # Sort berdasarkan timestamp
-        df = df.sort_values("open_time").reset_index(drop=True)
+        # Convert open_time timezone safely
+        if df["open_time"].dt.tz is None:
+            # Naive → localize dulu
+            df["open_time"] = (
+                df["open_time"].dt.tz_localize("UTC").dt.tz_convert("Asia/Jakarta")
+            )
+        else:
+            # Already tz-aware → cukup convert
+            df["open_time"] = df["open_time"].dt.tz_convert("Asia/Jakarta")
 
-        return df
+        return df.sort_values("open_time").reset_index(drop=True)

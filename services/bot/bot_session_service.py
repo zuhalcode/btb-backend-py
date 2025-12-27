@@ -3,15 +3,9 @@ from libs.supabase import supabase
 
 from dtos.bot_session_dto import (
     BotSessionResponseDTO,
-    BotSessionDTO,
     BotSessionUpdateDTO,
-    BotSessionCreateDTO,
     BotSessionStatus as Status,
 )
-
-import requests
-import time
-import asyncio
 
 
 class BotSessionService:
@@ -37,7 +31,12 @@ class BotSessionService:
     @staticmethod
     def find_all_running() -> list[BotSessionResponseDTO]:
         try:
-            result = supabase.table(BotSessionService._table).select("*").execute()
+            result = (
+                supabase.table(BotSessionService._table)
+                .select("*")
+                .eq("status", Status.RUNNING)
+                .execute()
+            )
 
             return result.data
 
